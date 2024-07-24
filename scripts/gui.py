@@ -4,7 +4,7 @@ from tkinter import messagebox
 from measurement import setup_measurement, perform_measurement, interface_with_ppms
 from data_analysis import calculate_resistivity, calculate_hall_coefficient
 
-# Ensure the data directory exists
+
 if not os.path.exists('data'):
     os.makedirs('data')
 
