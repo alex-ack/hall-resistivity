@@ -1,0 +1,2 @@
+Resistivity: 3.594485377879038 Ohm.cm
+Hall Coefficient: 3.5944853778790375 cm^3/C

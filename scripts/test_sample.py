@@ -33,23 +33,19 @@ def test_rapid_data_collection():
     for _ in range(10):
         data_points.append((get_temperature(), get_field()))
         time.sleep(0.1)
-    
+
     # Check if there are at least some unique values
     unique_points = set(data_points)
     assert len(unique_points) > 1, "There should be at least some variation in measurements"
-    
+
     # Check if temperature or field has changed
     initial_temp, initial_field = data_points[0]
     final_temp, final_field = data_points[-1]
-    
-    temp_changed = any(abs(temp - initial_temp) > 1e-6 for temp, _ in data_points)
-    field_changed = any(abs(field - initial_field) > 1e-6 for _, field in data_points)
-    
-    assert temp_changed or field_changed, "Either temperature or field should change over time"
-    
-    print(f"Number of unique measurements: {len(unique_points)} out of {len(data_points)}")
-    print(f"Temperature range: {min(temp for temp, _ in data_points)} to {max(temp for temp, _ in data_points)}")
-    print(f"Field range: {min(field for _, field in data_points)} to {max(field for _, field in data_points)}")
+
+    temp_changed = any(abs(temp[0] - initial_temp[0]) > 1e-6 for temp, _ in data_points)
+    field_changed = any(abs(field[0] - initial_field[0]) > 1e-6 for _, field in data_points)
+
+    assert temp_changed or field_changed, "Neither temperature nor field changed significantly"
 
 def test_data_saving_after_measurement():
     """Test if data is saved after measurement completion."""

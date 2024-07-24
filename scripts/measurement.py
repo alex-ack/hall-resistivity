@@ -4,7 +4,7 @@ import os
 import pyvisa
 import random
 
-# Set to False when connecting to real instruments
+# Set to False when connecting to real instruments !!
 USE_MOCK = True
 
 class MockInstrument:
@@ -41,7 +41,7 @@ class MockPPMS:
         current_time = time.time()
         time_diff = current_time - self.last_update_time
         self.temperature += random.uniform(-0.1, 0.1) * time_diff
-        self.field += random.uniform(-0.01, 0.01) * time_diff
+        self.field += random.uniform(-0.01, 0.01) * time_diff  # Ensure field changes over time
         self.last_update_time = current_time
 
     def get_temperature(self):
@@ -63,6 +63,15 @@ else:
     keithley6221 = rm.open_resource('GPIB::24::INSTR')
     keithley2182A = rm.open_resource('GPIB::25::INSTR')
     ppms = rm.open_resource('TCPIP::192.168.1.100::INSTR')  # Replace with actual PPMS address
+
+def check_instrument_connection(instrument, query="*IDN?"):
+    try:
+        response = instrument.query(query)
+        print(f"Instrument ID = {response.strip()}")
+        return True
+    except Exception as e:
+        print(f"Failed to connect to instrument: {e}")
+        return False
 
 def setup_measurement(length, area):
     """
@@ -100,13 +109,13 @@ def get_temperature():
     """Get the current temperature from PPMS."""
     response = interface_with_ppms("GETDAT? 2")  # Assuming 2 is the parameter for temperature
     temp, status = response.split(',')
-    return float(temp)
+    return float(temp), status
 
 def get_field():
     """Get the current magnetic field from PPMS."""
     response = interface_with_ppms("GETDAT? 3")  # Assuming 3 is the parameter for field
     field, status = response.split(',')
-    return float(field)
+    return float(field), status
 
 def perform_measurement(channels):
     """
@@ -117,6 +126,9 @@ def perform_measurement(channels):
     """
     results = {}
     data = []
+    temperature, temp_status = get_temperature()
+    field, field_status = get_field()
+    
     for channel in channels:
         if not USE_MOCK:
             keithley6221.write(f'SOUR:CURR {channel["current"]}')  # Set current
@@ -127,14 +139,21 @@ def perform_measurement(channels):
 
         measurement = {
             'timestamp': time.time(),
-            'temperature': get_temperature(),
-            'field': get_field(),
+            'temperature': temperature,
+            'temp_status': temp_status,
+            'field': field,
+            'field_status': field_status,
             'channel': channel['name'],
             'current': channel['current'],
             'voltage': voltage,
         }
         data.append(measurement)
         results[channel['name']] = voltage
+
+    results['temperature'] = temperature
+    results['temp_status'] = temp_status
+    results['field'] = field
+    results['field_status'] = field_status
 
     save_measurement_data(data, "measurement_results")
     return results
@@ -150,10 +169,14 @@ def collect_data_over_time(duration, interval):
     data = []
     start_time = time.time()
     while time.time() - start_time < duration:
+        temperature, temp_status = get_temperature()
+        field, field_status = get_field()
         measurement = {
             'time': time.time() - start_time,
-            'temperature': get_temperature(),
-            'field': get_field()
+            'temperature': temperature,
+            'temp_status': temp_status,
+            'field': field,
+            'field_status': field_status
         }
         data.append(measurement)
         time.sleep(interval)
@@ -161,27 +184,31 @@ def collect_data_over_time(duration, interval):
     save_measurement_data(data, "time_series_data")
     return data
 
-def save_measurement_data(data, filename):
+def save_measurement_data(data, filename, include_timestamp=True):
     """
     Save measurement data to a CSV file.
-    
+
     :param data: List of dictionaries containing measurement data
     :param filename: Base filename for the CSV file
+    :param include_timestamp: Boolean to include timestamp in filename or not
     """
     if not os.path.exists('data'):
         os.makedirs('data')
 
-    timestamp = time.strftime("%Y%m%d-%H%M%S")
-    full_filename = f"data/{filename}_{timestamp}.csv"
-    
+    if include_timestamp:
+        timestamp = time.strftime("%Y%m%d-%H%M%S")
+        full_filename = f"data/{filename}_{timestamp}.csv"
+    else:
+        full_filename = f"{filename}.csv"
+
     with open(full_filename, 'w', newline='') as csvfile:
         fieldnames = data[0].keys()
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-        
+
         writer.writeheader()
         for row in data:
             writer.writerow(row)
-    
+
     print(f"Data saved to {full_filename}")
 
 def calculate_resistivity(voltage, current, length, area):
@@ -212,6 +239,19 @@ def calculate_hall_coefficient(voltage, current, field, thickness):
     return hall_coefficient
 
 if __name__ == "__main__":
+    if not USE_MOCK:
+        print("Checking connections...")
+
+        keithley6221_connected = check_instrument_connection(keithley6221)
+        keithley2182A_connected = check_instrument_connection(keithley2182A)
+        ppms_connected = check_instrument_connection(ppms)
+
+        if keithley6221_connected and keithley2182A_connected and ppms_connected:
+            print("All instruments connected successfully.")
+        else:
+            print("Some instruments failed to connect.")
+            exit(1)
+
     # Example usage
     setup_measurement(1.0, 0.1)  # 1 cm length, 0.1 cm^2 area
     channels = [
@@ -232,13 +272,14 @@ if __name__ == "__main__":
     field = 1.0  # Tesla
 
     for channel, voltage in results.items():
-        current = next(ch['current'] for ch in channels if ch['name'] == channel)
-        resistivity = calculate_resistivity(voltage, current, sample_length, sample_area)
-        hall_coefficient = calculate_hall_coefficient(voltage, current, field, sample_thickness)
-        
-        print(f"{channel}:")
-        print(f"  Resistivity: {resistivity:.6f} ohm-cm")
-        print(f"  Hall Coefficient: {hall_coefficient:.6e} cm^3/C")
+        if channel not in ['temperature', 'temp_status', 'field', 'field_status']:
+            current = next(ch['current'] for ch in channels if ch['name'] == channel)
+            resistivity = calculate_resistivity(voltage, current, sample_length, sample_area)
+            hall_coefficient = calculate_hall_coefficient(voltage, current, field, sample_thickness)
+            
+            print(f"{channel}:")
+            print(f"  Resistivity: {resistivity:.6f} ohm-cm")
+            print(f"  Hall Coefficient: {hall_coefficient:.6e} cm^3/C")
 
     # Example usage of interface_with_ppms
     print("Testing PPMS interface:")

@@ -1,106 +1,104 @@
-import os
 import tkinter as tk
 from tkinter import messagebox
-from measurement import setup_measurement, perform_measurement, interface_with_ppms
-from data_analysis import calculate_resistivity, calculate_hall_coefficient
 
+class ResistivityMeasurementApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Resistivity and Hall Effect Measurements")
 
-if not os.path.exists('data'):
-    os.makedirs('data')
+        self.channels = []
+
+        # Create and place widgets
+        tk.Label(root, text="Sample Length (cm):").grid(row=0, column=0)
+        self.length_entry = tk.Entry(root)
+        self.length_entry.grid(row=0, column=1)
+
+        tk.Label(root, text="Sample Cross-Sectional Area (cm^2):").grid(row=1, column=0)
+        self.area_entry = tk.Entry(root)
+        self.area_entry.grid(row=1, column=1)
+
+        tk.Label(root, text="Channel Name:").grid(row=2, column=0)
+        self.channel_name_entry = tk.Entry(root)
+        self.channel_name_entry.grid(row=2, column=1)
+
+        tk.Label(root, text="Current (A):").grid(row=3, column=0)
+        self.current_entry = tk.Entry(root)
+        self.current_entry.grid(row=3, column=1)
+
+        self.add_button = tk.Button(root, text="Add Channel", command=self.add_channel)
+        self.add_button.grid(row=4, column=0)
+
+        self.remove_button = tk.Button(root, text="Remove Channel", command=self.remove_channel)
+        self.remove_button.grid(row=4, column=1)
+
+        self.channel_listbox = tk.Listbox(root)
+        self.channel_listbox.grid(row=5, column=0, columnspan=2)
+
+        self.start_button = tk.Button(root, text="Start Measurement", command=self.start_measurement)
+        self.start_button.grid(row=6, column=0, columnspan=2)
+
+    def add_channel(self):
+        channel_name = self.channel_name_entry.get()
+        current = self.current_entry.get()
+
+        if not channel_name or not current:
+            messagebox.showerror("Error", "Please fill in all fields")
+            return
+        
+        try:
+            current = float(current)
+        except ValueError:
+            messagebox.showerror("Error", "Current must be a number")
+            return
+
+        if channel_name in self.channels:
+            messagebox.showerror("Error", f"Channel '{channel_name}' already exists")
+            return
+
+        self.channels.append(channel_name)
+        self.channel_listbox.insert(tk.END, f"Channel {channel_name}: {current:.1f} A")
+        self.channel_name_entry.delete(0, tk.END)
+        self.current_entry.delete(0, tk.END)
+
+    def remove_channel(self):
+        selected = self.channel_listbox.curselection()
+        if not selected:
+            messagebox.showerror("Error", "No channel selected")
+            return
+
+        selected_channel = self.channel_listbox.get(selected)
+        channel_name = selected_channel.split(':')[0].replace("Channel ", "").strip()
+
+        try:
+            self.channels.remove(channel_name)
+            self.channel_listbox.delete(selected)
+        except ValueError:
+            messagebox.showerror("Error", f"Channel '{channel_name}' not found in list")
+
+    def start_measurement(self):
+        length = self.length_entry.get()
+        area = self.area_entry.get()
+
+        if not length or not area:
+            messagebox.showerror("Error", "Please fill in sample dimensions")
+            return
+
+        try:
+            length = float(length)
+            area = float(area)
+        except ValueError:
+            messagebox.showerror("Error", "Sample dimensions must be numbers")
+            return
+
+        if not self.channels:
+            messagebox.showerror("Error", "No channels added")
+            return
+
+        # Here you would start the actual measurement process
+        # This is just a placeholder for demonstration
+        messagebox.showinfo("Info", "Measurement started")
 
 def run_gui():
     root = tk.Tk()
-    root.title("Resistivity and Hall Effect Measurements")
-
-    # Sample dimensions input
-    tk.Label(root, text="Sample Length (cm):").grid(row=0, column=0)
-    length_entry = tk.Entry(root)
-    length_entry.grid(row=0, column=1)
-
-    tk.Label(root, text="Sample Cross-Sectional Area (cm^2):").grid(row=1, column=0)
-    area_entry = tk.Entry(root)
-    area_entry.grid(row=1, column=1)
-
-    # Channel input
-    channels = []
-
-    def add_channel():
-        try:
-            current = float(current_entry.get())
-            name = channel_name_entry.get()
-            if not name:
-                messagebox.showerror("Invalid Input", "Please enter a name for the channel.")
-                return
-            channels.append({"name": name, "current": current})
-            channel_list.insert(tk.END, f"Channel {name}: {current} A")
-        except ValueError:
-            messagebox.showerror("Invalid Input", "Please enter valid numerical values for current.")
-
-    def remove_channel():
-        try:
-            selected_index = channel_list.curselection()[0]
-            channel_list.delete(selected_index)
-            del channels[selected_index]
-        except IndexError:
-            messagebox.showerror("Invalid Selection", "Please select a channel to remove.")
-
-    tk.Label(root, text="Channel Name:").grid(row=2, column=0)
-    channel_name_entry = tk.Entry(root)
-    channel_name_entry.grid(row=2, column=1)
-
-    tk.Label(root, text="Current (A):").grid(row=3, column=0)
-    current_entry = tk.Entry(root)
-    current_entry.grid(row=3, column=1)
-
-    add_channel_button = tk.Button(root, text="Add Channel", command=add_channel)
-    add_channel_button.grid(row=4, column=0, columnspan=2)
-
-    remove_channel_button = tk.Button(root, text="Remove Channel", command=remove_channel)
-    remove_channel_button.grid(row=5, column=0, columnspan=2)
-
-    channel_list = tk.Listbox(root)
-    channel_list.grid(row=6, column=0, columnspan=2)
-
-    def start_measurement():
-        try:
-            length = float(length_entry.get())
-            area = float(area_entry.get())
-        except ValueError:
-            messagebox.showerror("Invalid Input", "Please enter valid numerical values for length and area.")
-            return
-        
-        setup_measurement(length, area)
-        results = perform_measurement(channels)
-        
-        for channel in results:
-            if channel not in ['temperature', 'temp_status', 'field', 'field_status']:
-                resistivity = calculate_resistivity({"voltage": results[channel]}, length, area)
-                hall_coefficient = calculate_hall_coefficient({"voltage": results[channel]})
-                # Display results
-                tk.Label(root, text=f"{channel} - Resistivity: {resistivity} Ohm.cm").grid(row=7, column=0, columnspan=2)
-                tk.Label(root, text=f"{channel} - Hall Coefficient: {hall_coefficient} cm^3/C").grid(row=8, column=0, columnspan=2)
-                # Save results
-                with open(f'data/results_{channel}.txt', 'w') as f:
-                    f.write(f"Resistivity: {resistivity} Ohm.cm\nHall Coefficient: {hall_coefficient} cm^3/C\n")
-        
-        # Display PPMS data
-        tk.Label(root, text=f"Temperature: {results['temperature']} K, Status: {results['temp_status']}").grid(row=9, column=0, columnspan=2)
-        tk.Label(root, text=f"Field: {results['field']} T, Status: {results['field_status']}").grid(row=10, column=0, columnspan=2)
-
-        # Example usage of collect_data_over_time
-        duration = 60  # 1 minute
-        interval = 2   # 2 seconds
-        time_series_data = collect_data_over_time(duration, interval)
-        
-        # Save time series data
-        with open('data/time_series_data.txt', 'w') as f:
-            f.write("Time(s),Temperature(K),Temp_Status,Field(T),Field_Status\n")
-            for data_point in time_series_data:
-                f.write(f"{data_point['time']},{data_point['temperature']},{data_point['temp_status']},{data_point['field']},{data_point['field_status']}\n")
-
-        messagebox.showinfo("Measurement Complete", "Measurement and data collection completed successfully.")
-
-    start_button = tk.Button(root, text="Start Measurement", command=start_measurement)
-    start_button.grid(row=11, column=0, columnspan=2)
-
+    app = ResistivityMeasurementApp(root)
     root.mainloop()
