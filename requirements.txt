@@ -1,0 +1,6 @@
+PyVISA
+MultiPyVu
+matplotlib
+pandas
+numpy
+pyqt5
