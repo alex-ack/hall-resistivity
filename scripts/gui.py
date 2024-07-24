@@ -73,21 +73,34 @@ def run_gui():
         results = perform_measurement(channels)
         
         for channel in results:
-            resistivity = calculate_resistivity({"voltage": results[channel]}, length, area)
-            hall_coefficient = calculate_hall_coefficient({"voltage": results[channel]})
-            # Display results
-            tk.Label(root, text=f"{channel} - Resistivity: {resistivity} Ohm.cm").grid(row=7, column=0, columnspan=2)
-            tk.Label(root, text=f"{channel} - Hall Coefficient: {hall_coefficient} cm^3/C").grid(row=8, column=0, columnspan=2)
-            # Save results
-            with open(f'data/results_{channel}.txt', 'w') as f:
-                f.write(f"Resistivity: {resistivity} Ohm.cm\nHall Coefficient: {hall_coefficient} cm^3/C\n")
+            if channel not in ['temperature', 'temp_status', 'field', 'field_status']:
+                resistivity = calculate_resistivity({"voltage": results[channel]}, length, area)
+                hall_coefficient = calculate_hall_coefficient({"voltage": results[channel]})
+                # Display results
+                tk.Label(root, text=f"{channel} - Resistivity: {resistivity} Ohm.cm").grid(row=7, column=0, columnspan=2)
+                tk.Label(root, text=f"{channel} - Hall Coefficient: {hall_coefficient} cm^3/C").grid(row=8, column=0, columnspan=2)
+                # Save results
+                with open(f'data/results_{channel}.txt', 'w') as f:
+                    f.write(f"Resistivity: {resistivity} Ohm.cm\nHall Coefficient: {hall_coefficient} cm^3/C\n")
+        
+        # Display PPMS data
+        tk.Label(root, text=f"Temperature: {results['temperature']} K, Status: {results['temp_status']}").grid(row=9, column=0, columnspan=2)
+        tk.Label(root, text=f"Field: {results['field']} T, Status: {results['field_status']}").grid(row=10, column=0, columnspan=2)
 
-        # Example usage of interface_with_ppms
-        ppms_response = interface_with_ppms('TCPIP::192.168.1.100::INSTR', '*IDN?')
-        print(f"PPMS Response: {ppms_response}")
+        # Example usage of collect_data_over_time
+        duration = 60  # 1 minute
+        interval = 2   # 2 seconds
+        time_series_data = collect_data_over_time(duration, interval)
+        
+        # Save time series data
+        with open('data/time_series_data.txt', 'w') as f:
+            f.write("Time(s),Temperature(K),Temp_Status,Field(T),Field_Status\n")
+            for data_point in time_series_data:
+                f.write(f"{data_point['time']},{data_point['temperature']},{data_point['temp_status']},{data_point['field']},{data_point['field_status']}\n")
+
+        messagebox.showinfo("Measurement Complete", "Measurement and data collection completed successfully.")
 
     start_button = tk.Button(root, text="Start Measurement", command=start_measurement)
-    start_button.grid(row=9, column=0, columnspan=2)
+    start_button.grid(row=11, column=0, columnspan=2)
 
     root.mainloop()
-    # hi hi hi
